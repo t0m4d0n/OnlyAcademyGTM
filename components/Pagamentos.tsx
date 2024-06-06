@@ -26,7 +26,7 @@ const Pagamentos = () => {
         </TouchableOpacity>
         <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Planos', { planId: 3 })}>
           <Ionicons size={32} color="purple" />
-          <Text style={styles.cardTitle}>ANUAL</Text>
+          <Text style={styles.cardTitle}> ANUAL </Text>
           <Text style={styles.cardDescription}>R$299,90/ ano</Text>
         </TouchableOpacity>
       </View>
