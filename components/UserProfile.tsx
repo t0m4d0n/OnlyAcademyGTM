@@ -1,42 +1,134 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, TextInput, Button } from 'react-native';
+import * as ImagePicker from 'react-native-image-picker'; 
+import supabase from '../supabase';
 
 const UserProfile = () => {
     const [isEditing, setIsEditing] = useState(false);
+    const [profile, setProfile] = useState({
+        first_name: '',
+        last_name: '',
+        bio: '',
+        location: '',
+        profile_picture: ''
+    });
 
-    const toggleEdit = () => {
-        setIsEditing(prevState => !prevState);
+    useEffect(() => {
+        fetchProfile();
+    }, []);
+
+    const fetchProfile = async () => {
+        const userId = 'seu-user-id'; // Substitua pelo ID do usuário atual
+        const { data, error } = await supabase
+            .from('profile')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        if (error) {
+            console.error(error);
+        } else {
+            setProfile(data);
+        }
+    };
+
+    const updateProfile = async () => {
+        const userId = 'seu-user-id'; // Substitua pelo ID do usuário atual
+        const { error } = await supabase
+            .from('profile')
+            .update(profile)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error(error);
+        } else {
+            setIsEditing(false);
+        }
+    };
+
+    const handleChange = (name: string, value: string) => {
+        setProfile({ ...profile, [name]: value });
+    };
+
+    const handleImageUpload = async () => {
+        const result = await ImagePicker.launchImageLibrary({
+            mediaType: 'photo',
+            quality: 1,
+        });
+
+        if (!result.didCancel && result.assets && result.assets.length > 0) {
+            const file = result.assets[0];
+            const path = `profile_pictures/${profile.user_id}/${file.fileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('fotos')
+                .upload(path, {
+                    uri: file.uri,
+                    type: file.type,
+                    name: file.fileName,
+                });
+
+            if (error) {
+                console.error(error);
+            } else {
+                const { publicUrl } = supabase.storage
+                    .from('fotos')
+                    .getPublicUrl(path);
+
+                setProfile({ ...profile, profile_picture: publicUrl });
+            }
+        }
     };
 
     return (
         <View style={styles.container}>
-            <Image style={styles.profileImage} source={require('../assets/IMG-20240321-WA0015.jpeg')}/>
-            <Text style={styles.username}>Nome do Usuário</Text>
-            <Text style={styles.bio}>Descrição do perfil do usuário. Aqui você pode escrever algo interessante sobre você.</Text>
+            <Image style={styles.profileImage} source={{ uri: profile.profile_picture }} />
+            {isEditing ? (
+                <>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="First Name"
+                        value={profile.first_name}
+                        onChangeText={(text) => handleChange('first_name', text)}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Last Name"
+                        value={profile.last_name}
+                        onChangeText={(text) => handleChange('last_name', text)}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Bio"
+                        value={profile.bio}
+                        onChangeText={(text) => handleChange('bio', text)}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Location"
+                        value={profile.location}
+                        onChangeText={(text) => handleChange('location', text)}
+                    />
+                    <Button title="Upload Image" onPress={handleImageUpload} />
+                </>
+            ) : (
+                <>
+                    <Text style={styles.username}>{profile.first_name} {profile.last_name}</Text>
+                    <Text style={styles.bio}>{profile.bio}</Text>
+                    <Text style={styles.location}>{profile.location}</Text>
+                </>
+            )}
             <View style={styles.statsContainer}>
                 <Text style={styles.stats}>Seguindo: 5666</Text>
                 <Text style={styles.stats}>Seguidores: 2</Text>
             </View>
             <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.editButton} onPress={toggleEdit}>
+                <TouchableOpacity style={styles.editButton} onPress={() => { isEditing ? updateProfile() : setIsEditing(true); }}>
                     <Text style={styles.editButtonText}>{isEditing ? 'Salvar' : 'Editar Perfil'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.settingsButton}>
                     <Text style={styles.settingsButtonText}>Configurações</Text>
                 </TouchableOpacity>
-            </View>
-
-            <View style={styles.photosContainer}>
-                <Image style={styles.photo} source={require('../assets/colonia1.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia2.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia3.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia7.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia4.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia10.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia5.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia8.jpeg')} />
-                <Image style={styles.photo} source={require('../assets/colonia9.jpeg')} />
-
             </View>
         </View>
     );
@@ -47,7 +139,6 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         padding: 20,
-       
     },
     profileImage: {
         width: 150,
@@ -56,6 +147,15 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#ff6a06',
         marginBottom: 20,
+    },
+    input: {
+        height: 40,
+        borderColor: 'gray',
+        borderWidth: 1,
+        marginBottom: 10,
+        paddingHorizontal: 10,
+        width: '80%',
+        borderRadius: 5,
     },
     username: {
         fontSize: 24,
@@ -68,8 +168,13 @@ const styles = StyleSheet.create({
         color: 'black',
         marginBottom: 20,
     },
+    location: {
+        textAlign: 'center',
+        color: 'black',
+        marginBottom: 20,
+    },
     statsContainer: {
-        flexDirection: 'row',      
+        flexDirection: 'row',
         marginBottom: 20,
     },
     stats: {
@@ -101,19 +206,6 @@ const styles = StyleSheet.create({
     settingsButtonText: {
         color: 'white',
         fontWeight: 'bold',
-    },
-    photosContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-around',
-        paddingHorizontal: 10, // Espaço interno horizontal
-        marginTop: 20, // Espaço acima do container
-    },
-    photo: {
-        width: 100,
-        height: 100,
-        marginVertical: 5, // Espaço vertical entre as fotos
-        borderRadius: 5, // Borda arredondada
     },
 });
 
